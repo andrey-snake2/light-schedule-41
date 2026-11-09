@@ -1,0 +1,8 @@
+.env
+telegram_session.txt
+*.session
+telegram_qr.png
+__pycache__/
+header_debug.png
+header_mask.png
+schedule_test.json
