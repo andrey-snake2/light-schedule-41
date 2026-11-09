@@ -1,40 +1,15 @@
+      - name: Publish verified schedule
+        run: |
+          python -c "import json, pathlib; s=json.loads(pathlib.Path('schedule_test.json').read_text(encoding='utf-8')); assert s['queue']=='4.1'; assert len(s['hours'])==24; assert len(s['halfHours'])==48; assert sum(x != 0 for x in s['halfHours'])*30==s['totalOutageMinutes']; pathlib.Path('schedule.json').write_text(json.dumps(s, ensure_ascii=False, indent=2)+'\n', encoding='utf-8')"
 
-name: Update electricity schedule
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-on:
-  workflow_dispatch:
+          git add schedule.json
 
-permissions:
-  contents: write
-
-jobs:
-  update:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Request and verify schedule
-        env:
-          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
-          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
-          TELEGRAM_SESSION: ${{ secrets.TELEGRAM_SESSION }}
-        run: python update_schedule.py
-
-      - name: Upload diagnostic result
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: verified-schedule
-          path: schedule_test.json
-          retention-days: 3
+          if ! git diff --cached --quiet; then
+            git commit -m "Update verified electricity schedule"
+            git push
+          else
+            echo "Schedule unchanged"
+          fi
