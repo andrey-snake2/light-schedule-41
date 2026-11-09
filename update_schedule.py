@@ -3,7 +3,8 @@ import asyncio
 import io
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 import numpy as np
@@ -471,20 +472,50 @@ async def main():
         # Step 4: validate result
         validate_schedule(schedule)
 
-        # Step 5: add verified metadata
+        # Step 5: only accept a schedule for today or tomorrow
+        # in the official local timezone (Europe/Kyiv).
+        from datetime import date
+        try:
+            image_date = date.fromisoformat(verified_date)
+        except (TypeError, ValueError) as exc:
+            raise RuntimeError(
+                f"Unrecognized schedule date: {verified_date!r}"
+            ) from exc
+
+        kyiv_now = datetime.now(ZoneInfo("Europe/Kyiv"))
+        allowed_dates = {
+            kyiv_now.date(),
+            kyiv_now.date() + timedelta(days=1),
+        }
+        if image_date not in allowed_dates:
+            raise RuntimeError(
+                f"Stale or unexpected image date: {image_date}. "
+                f"Expected one of: {sorted(allowed_dates)}. "
+                "Publication blocked."
+            )
+
+        # Step 6: derive the 24 hourly slots for Scriptable.
+        # A full outage takes precedence over a planned outage.
+        half_hours = schedule["halfHours"]
+        hours = []
+        for i in range(0, 48, 2):
+            pair = half_hours[i:i + 2]
+            hours.append(1 if 1 in pair else 2 if 2 in pair else 0)
+        schedule["hours"] = hours
+
+        if len(hours) != 24:
+            raise RuntimeError("Expected exactly 24 hourly slots.")
+
+        # Step 7: add verified metadata
         schedule["date"] = verified_date
         schedule["queue"] = EXPECTED_QUEUE
         schedule["source"] = (
             "official-telegram-bot"
         )
 
-        schedule["updatedAt"] = (
-            datetime.now()
-            .astimezone()
-            .isoformat(timespec="seconds")
-        )
+        schedule["updatedAt"] = kyiv_now.isoformat(timespec="seconds")
 
-        # Step 6: save verified test JSON
+        # Step 8: save verified test JSON
         with open(
             OUTPUT_FILE,
             "w",
@@ -501,6 +532,8 @@ async def main():
         print("SUCCESS!")
         print("Queue:", schedule["queue"])
         print("Date:", schedule["date"])
+        print("Hourly slots:", len(schedule["hours"]))
+        print("Half-hour slots:", len(schedule["halfHours"]))
         print(
             "Total outage:",
             schedule["totalOutageMinutes"],
