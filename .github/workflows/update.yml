@@ -4,7 +4,7 @@ name: Update electricity schedule
 on:
   workflow_dispatch:
   schedule:
-      - cron: "12,32,52 * * * *"
+      - cron: "10,40 * * * *"
 
 permissions:
   contents: write
