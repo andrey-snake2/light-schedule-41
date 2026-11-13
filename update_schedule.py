@@ -1,13 +1,15 @@
+
 import asyncio
 import io
 import json
 import os
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 
 import numpy as np
-from dotenv import load_dotenv
 from PIL import Image
+from dotenv import load_dotenv
 from telethon import TelegramClient
 from telethon.sessions import StringSession
 
@@ -15,19 +17,49 @@ from analyze_schedule import analyze_image
 from date_verification import recognize_date
 
 
+# ==========================================
+# 1. SETTINGS
+# ==========================================
+
+load_dotenv()
+
+API_ID = int(os.environ["TELEGRAM_API_ID"])
+API_HASH = os.environ["TELEGRAM_API_HASH"]
+
 BOT = "pat_voe_bot"
 ACCOUNT_TEXT = "Немирівське шосе"
+
+EXPECTED_QUEUE = "4.1"
 IMAGE_SIZE = (540, 714)
+
 HEADER_BOX = (20, 35, 520, 110)
 QUEUE_BOX = (0, 0, 210, 75)
+
 REFERENCE_FILE = "queue_reference.png"
+OUTPUT_FILE = "schedule_test.json"
+
 MIN_QUEUE_SIMILARITY = 0.98
-OUTPUT_FILE = Path("schedule.json")
 
 
-def load_telegram_session():
-    session = os.getenv("TELEGRAM_SESSION", "").strip()
+# ==========================================
+# 2. TELEGRAM SESSION
+# ==========================================
+
+def get_telegram_session():
+    """
+    GitHub Actions:
+        TELEGRAM_SESSION environment variable
+
+    Local Windows:
+        telegram_session.txt
+    """
+
+    session = os.environ.get(
+        "TELEGRAM_SESSION", ""
+    ).strip()
+
     if session:
+        print("Using Telegram session from environment.")
         return session
 
     session_path = Path("telegram_session.txt")
@@ -191,126 +223,315 @@ def verify_image(image_bytes):
         "Verified schedule date:",
         verified_date
     )
+
     return verified_date
 
 
+# ==========================================
+# 6. VALIDATE SCHEDULE
+# ==========================================
+
+def validate_schedule(schedule):
+
+    if not isinstance(schedule, dict):
+        raise RuntimeError(
+            "Invalid schedule format."
+        )
+
+    half_hours = schedule.get("halfHours")
+
+    if not isinstance(half_hours, list):
+        raise RuntimeError(
+            "halfHours is missing."
+        )
+
+    if len(half_hours) != 48:
+        raise RuntimeError(
+            "Expected exactly 48 half-hour slots."
+        )
+
+    for value in half_hours:
+        if (
+            type(value) is not int
+            or value not in (0, 1, 2)
+        ):
+            raise RuntimeError(
+                "Invalid half-hour status."
+            )
+
+    calculated_minutes = (
+        sum(value != 0 for value in half_hours) * 30
+    )
+
+    if (
+        schedule.get("totalOutageMinutes")
+        != calculated_minutes
+    ):
+        raise RuntimeError(
+            "Outage total does not match halfHours."
+        )
+
+    print(
+        "Schedule structure verified:",
+        calculated_minutes,
+        "minutes"
+    )
+
+
+# ==========================================
+# 7. FIND TELEGRAM MENU
+# ==========================================
+
 async def get_latest_menu(client, bot):
-    messages = await client.get_messages(bot, limit=20)
+
+    messages = await client.get_messages(
+        bot, limit=20
+    )
 
     for msg in messages:
         if not msg.out and msg.buttons:
             return msg
 
-    raise RuntimeError("Bot menu not found")
-
-
-async def main():
-    load_dotenv()
-    api_id = int(os.environ["TELEGRAM_API_ID"])
-    api_hash = os.environ["TELEGRAM_API_HASH"]
-    session = load_telegram_session()
-
-    client = TelegramClient(
-        StringSession(session),
-        api_id,
-        api_hash
+    raise RuntimeError(
+        "Bot menu not found."
     )
 
-    async with client:
-        bot = await client.get_entity(BOT)
-        menu = await get_latest_menu(client, bot)
 
-        # Return to account selection if necessary
-        buttons = [
+# ==========================================
+# 8. REQUEST FRESH IMAGE
+# ==========================================
+
+async def get_fresh_image(client, bot):
+
+    menu = await get_latest_menu(
+        client, bot
+    )
+
+    buttons = [
+        button.text
+        for row in menu.buttons
+        for button in row
+    ]
+
+    # Return to account selection if necessary
+    if any("Гаразд" in text for text in buttons):
+
+        print(
+            "Returning to account menu...",
+            flush=True
+        )
+
+        ok = next(
+            text for text in buttons
+            if "Гаразд" in text
+        )
+
+        try:
+            await asyncio.wait_for(
+                menu.click(text=ok),
+                timeout=15
+            )
+        except asyncio.TimeoutError:
+            print(
+                "Return button timeout. Checking menu...",
+                flush=True
+            )
+
+        await asyncio.sleep(3)
+
+        menu = await get_latest_menu(
+            client, bot
+        )
+
+    # Find correct account
+    account = next(
+        (
             button.text
             for row in menu.buttons
             for button in row
-        ]
+            if ACCOUNT_TEXT in button.text
+        ),
+        None
+    )
 
-        if any("Гаразд" in text for text in buttons):
-            print("Returning to account menu...")
-
-            ok = next(
-                text for text in buttons
-                if "Гаразд" in text
-            )
-
-            await menu.click(text=ok)
-            await asyncio.sleep(3)
-            menu = await get_latest_menu(client, bot)
-
-        # Find the correct account
-        account = next(
-            (
-                button.text
-                for row in menu.buttons
-                for button in row
-                if ACCOUNT_TEXT in button.text
-            ),
-            None
+    if account is None:
+        raise RuntimeError(
+            "Correct account not found."
         )
 
-        if account is None:
-            raise RuntimeError("Correct account not found")
+    previous = await client.get_messages(
+        bot, limit=1
+    )
 
-        previous = await client.get_messages(bot, limit=1)
-        previous_id = previous[0].id
+    previous_id = (
+        previous[0].id if previous else 0
+    )
 
-        print("Requesting fresh schedule...")
+    print(
+        "Requesting fresh schedule...",
+        flush=True
+    )
 
-        await menu.click(text=account)
-        await asyncio.sleep(5)
-
-        messages = await client.get_messages(bot, limit=15)
-
-        images = [
-            msg for msg in messages
-            if (
-                not msg.out
-                and msg.photo
-                and msg.id > previous_id
-            )
-        ]
-
-        if not images:
-            raise RuntimeError("No new schedule image received")
-
-        newest = max(images, key=lambda msg: msg.id)
-
-        print("New image received:", newest.id)
-
-        image_bytes = await client.download_media(
-            newest,
-            file=bytes
-        )
-
-        if not image_bytes:
-            raise RuntimeError("Image download failed.")
-
-        save_verified_schedule(image_bytes)
-
-
-def save_verified_schedule(image_bytes):
-    verified_date = verify_image(image_bytes)
-    schedule = analyze_image(image_bytes)
-    schedule["date"] = verified_date
-
-    temp_path = None
+    # Prevent indefinite waiting for bot response
     try:
-        with NamedTemporaryFile(
-            mode="w", encoding="utf-8", dir=OUTPUT_FILE.parent,
-            prefix=".schedule-", suffix=".tmp", delete=False,
+        await asyncio.wait_for(
+            menu.click(text=account),
+            timeout=15
+        )
+
+        print(
+            "Account button clicked.",
+            flush=True
+        )
+
+    except asyncio.TimeoutError:
+        print(
+            "Bot response timeout. Checking messages...",
+            flush=True
+        )
+
+    await asyncio.sleep(3)
+
+    messages = await client.get_messages(
+        bot, limit=20
+    )
+
+    images = [
+        msg
+        for msg in messages
+        if (
+            not msg.out
+            and msg.photo
+            and msg.id > previous_id
+        )
+    ]
+
+    if not images:
+        raise RuntimeError(
+            "No new schedule image received."
+        )
+
+    newest = max(
+        images,
+        key=lambda msg: msg.id
+    )
+
+    print(
+        "New image received:",
+        newest.id
+    )
+
+    image_bytes = await client.download_media(
+        newest,
+        file=bytes
+    )
+
+    if not image_bytes:
+        raise RuntimeError(
+            "Image download failed."
+        )
+
+    return image_bytes
+
+
+# ==========================================
+# 9. MAIN
+# ==========================================
+
+async def main():
+
+    session = get_telegram_session()
+
+    client = TelegramClient(
+        StringSession(session),
+        API_ID,
+        API_HASH
+    )
+
+    async with client:
+
+        bot = await client.get_entity(BOT)
+
+        print("Telegram connected.")
+
+        # Step 1: obtain fresh official image
+        image_bytes = await get_fresh_image(
+            client, bot
+        )
+
+        # Step 2: verify queue and date
+        verified_date = verify_image(
+            image_bytes
+        )
+
+        # Step 3: analyze 30-minute intervals
+        schedule = analyze_image(
+            image_bytes
+        )
+
+        # Step 4: validate result
+        validate_schedule(schedule)
+
+        kyiv_now = datetime.now(ZoneInfo("Europe/Kyiv"))
+
+        # Step 6: derive the 24 hourly slots for Scriptable.
+        # A full outage takes precedence over a planned outage.
+        half_hours = schedule["halfHours"]
+        hours = []
+        for i in range(0, 48, 2):
+            pair = half_hours[i:i + 2]
+            hours.append(1 if 1 in pair else 2 if 2 in pair else 0)
+        schedule["hours"] = hours
+
+        if len(hours) != 24:
+            raise RuntimeError("Expected exactly 24 hourly slots.")
+
+        # Step 7: add verified metadata
+        schedule["date"] = verified_date
+        schedule["queue"] = EXPECTED_QUEUE
+        schedule["source"] = (
+            "official-telegram-bot"
+        )
+
+        schedule["updatedAt"] = kyiv_now.isoformat(timespec="seconds")
+
+        # Step 8: save verified test JSON
+        with open(
+            OUTPUT_FILE,
+            "w",
+            encoding="utf-8"
         ) as file:
-            temp_path = Path(file.name)
-            json.dump(schedule, file, ensure_ascii=False, indent=2)
-            file.write("\n")
-        temp_path.replace(OUTPUT_FILE)
-    finally:
-        if temp_path is not None:
-            temp_path.unlink(missing_ok=True)
+            json.dump(
+                schedule,
+                file,
+                ensure_ascii=False,
+                indent=2
+            )
 
-    print("Schedule saved:", OUTPUT_FILE)
+        print()
+        print("SUCCESS!")
+        print("Queue:", schedule["queue"])
+        print("Date:", schedule["date"])
+        print("Hourly slots:", len(schedule["hours"]))
+        print("Half-hour slots:", len(schedule["halfHours"]))
+        print(
+            "Total outage:",
+            schedule["totalOutageMinutes"],
+            "minutes"
+        )
+        print(
+            "Verified JSON saved:",
+            OUTPUT_FILE
+        )
+        print(
+            "Working schedule.json "
+            "has not been modified."
+        )
 
+
+# ==========================================
+# 10. START
+# ==========================================
 
 if __name__ == "__main__":
     asyncio.run(main())
