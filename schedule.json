@@ -2,12 +2,6 @@
   "queue": "4.1",
   "resolutionMinutes": 30,
   "halfHours": [
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
     0,
     0,
     0,
@@ -36,16 +30,22 @@
     0,
     0,
     0,
+    2,
+    2,
+    2,
+    2,
     0,
     0,
     0,
     0,
     0,
     0,
-    1,
-    1,
-    1,
-    1,
+    0,
+    0,
+    2,
+    2,
+    2,
+    2,
     0,
     0,
     0,
@@ -53,21 +53,18 @@
   ],
   "intervals": [
     {
-      "start": "00:00",
-      "end": "03:00",
-      "status": "outage"
+      "start": "14:00",
+      "end": "16:00",
+      "status": "planned"
     },
     {
       "start": "20:00",
       "end": "22:00",
-      "status": "outage"
+      "status": "planned"
     }
   ],
-  "totalOutageMinutes": 300,
+  "totalOutageMinutes": 240,
   "hours": [
-    1,
-    1,
-    1,
     0,
     0,
     0,
@@ -82,15 +79,18 @@
     0,
     0,
     0,
+    2,
+    2,
     0,
     0,
     0,
-    1,
-    1,
+    0,
+    2,
+    2,
     0,
     0
   ],
-  "date": "2026-11-21",
+  "date": "2026-11-22",
   "source": "official-telegram-bot",
-  "updatedAt": "2026-11-21T23:46:58+02:00"
+  "updatedAt": "2026-11-22T02:04:36+02:00"
 }
