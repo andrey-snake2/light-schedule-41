@@ -41,11 +41,11 @@
     0,
     0,
     0,
-    0,
-    2,
-    2,
-    2,
-    2,
+    1,
+    1,
+    1,
+    1,
+    1,
     0,
     0,
     0,
@@ -53,12 +53,12 @@
   ],
   "intervals": [
     {
-      "start": "20:00",
+      "start": "19:30",
       "end": "22:00",
-      "status": "planned"
+      "status": "outage"
     }
   ],
-  "totalOutageMinutes": 120,
+  "totalOutageMinutes": 150,
   "hours": [
     0,
     0,
@@ -79,13 +79,13 @@
     0,
     0,
     0,
-    0,
-    2,
-    2,
+    1,
+    1,
+    1,
     0,
     0
   ],
   "date": "2026-11-22",
   "source": "official-telegram-bot",
-  "updatedAt": "2026-11-22T20:00:50+02:00"
+  "updatedAt": "2026-11-22T20:53:32+02:00"
 }
