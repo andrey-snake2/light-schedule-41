@@ -46,10 +46,10 @@
     0,
     0,
     0,
-    2,
-    2,
-    2,
-    2
+    1,
+    1,
+    1,
+    1
   ],
   "intervals": [
     {
@@ -65,7 +65,7 @@
     {
       "start": "22:00",
       "end": "24:00",
-      "status": "planned"
+      "status": "outage"
     }
   ],
   "totalOutageMinutes": 480,
@@ -92,10 +92,10 @@
     0,
     0,
     0,
-    2,
-    2
+    1,
+    1
   ],
   "date": "2026-11-23",
   "source": "official-telegram-bot",
-  "updatedAt": "2026-11-23T21:50:56+02:00"
+  "updatedAt": "2026-11-23T22:37:42+02:00"
 }
