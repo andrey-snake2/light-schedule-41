@@ -32,8 +32,8 @@
     0,
     0,
     0,
-    2,
-    2,
+    0,
+    0,
     2,
     2,
     2,
@@ -58,7 +58,7 @@
       "status": "outage"
     },
     {
-      "start": "15:00",
+      "start": "16:00",
       "end": "18:00",
       "status": "planned"
     },
@@ -68,7 +68,7 @@
       "status": "planned"
     }
   ],
-  "totalOutageMinutes": 420,
+  "totalOutageMinutes": 360,
   "hours": [
     0,
     0,
@@ -85,7 +85,7 @@
     0,
     0,
     0,
-    2,
+    0,
     2,
     2,
     0,
@@ -97,5 +97,5 @@
   ],
   "date": "2026-11-25",
   "source": "official-telegram-bot",
-  "updatedAt": "2026-11-25T12:44:50+02:00"
+  "updatedAt": "2026-11-25T13:45:52+02:00"
 }
