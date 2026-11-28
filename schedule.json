@@ -22,10 +22,10 @@
     0,
     0,
     0,
-    0,
-    0,
-    0,
-    0,
+    2,
+    2,
+    2,
+    2,
     0,
     0,
     0,
@@ -53,6 +53,11 @@
   ],
   "intervals": [
     {
+      "start": "10:00",
+      "end": "12:00",
+      "status": "planned"
+    },
+    {
       "start": "16:00",
       "end": "18:00",
       "status": "planned"
@@ -63,7 +68,7 @@
       "status": "planned"
     }
   ],
-  "totalOutageMinutes": 240,
+  "totalOutageMinutes": 360,
   "hours": [
     0,
     0,
@@ -75,8 +80,8 @@
     0,
     0,
     0,
-    0,
-    0,
+    2,
+    2,
     0,
     0,
     0,
@@ -92,5 +97,5 @@
   ],
   "date": "2026-11-28",
   "source": "official-telegram-bot",
-  "updatedAt": "2026-11-28T08:47:30+02:00"
+  "updatedAt": "2026-11-28T09:19:21+02:00"
 }
